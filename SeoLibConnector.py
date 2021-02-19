@@ -1,4 +1,5 @@
 import requests
+import pandas as pd
 
 class SeoLibParser:
     def __init__(self, token):
@@ -63,7 +64,39 @@ class SeoLibParser:
             report[engine["engine"]["name"]] = region_report
         return report
                 
+def form_table(SLP, period):
+    project_table = pd.DataFrame(columns=["project_id", "project_name", "project_domain"])
+    engine_table = pd.DataFrame(columns=["engine_id", "engine_name"])
+    region_table = pd.DataFrame(columns=["region_id", "region_name"])
+    report_table = pd.DataFrame(columns=["date", "project_id", "engine_id", "region_id", "keyword", "position"])
+
+    for project in SLP.get_projects()["content"]["projects"]:
+        project_table = project_table.append({"project_id": project["id"], "project_name": project["name"], "project_domain": project["domain"]}, ignore_index=True)
+
+        for engine in SLP.get_project_engines(project["id"])["content"]["engines"]:
+            engine_table = engine_table.append({"engine_id": engine["engine"]["id"], "engine_name": engine["engine"]["name"]}, ignore_index=True)
+
+            for region in SLP.get_project_regions(project["id"], engine["engine"]["id"])["content"]["regions"]:
+                region_table = region_table.append({"region_id": region["region"]["id"], "region_name": region["region"]["name"]}, ignore_index=True)
+
+                reports = SLP.get_report_positions(project["id"], engine["engine"]["id"], region["region"]["id"], period)
                 
+                if reports["success"]:
+                    rep_count = len(reports["content"]["reports"])
+                    i = 1
+                    for report in reports["content"]["reports"]:
+                        report_table = report_table.append(
+                        {
+                            "date": report["created"]["date"].split(" ")[0], 
+                            "project_id": report["project"]["id"], 
+                            "engine_id": report["engine"]["id"],
+                            "region_id": report["region"]["id"],
+                            "keyword": report["keyword"]["name"],
+                            "position": report["data"]["position"]
+                        }, ignore_index=True)
+                        print("{}/{}".format(i, rep_count))
+                        i += 1
+    return project_table, engine_table.drop_duplicates().reset_index(drop=True), region_table.drop_duplicates().reset_index(drop=True), report_table
 
 
 token = ""
@@ -71,4 +104,6 @@ SLP = SeoLibParser(token)
 
 projects = SLP.get_projects()
 #print(projects)
-print(SLP.generate_report(109142, ["2021-01-01", "2021-02-01"]))
+#print(SLP.generate_report(109142, ["2021-01-01", "2021-02-01"]))
+p_t, e_t, reg_t, rep_t = form_table(SLP, ["2021-01-01/2021-02-01"])
+print(rep_t)
